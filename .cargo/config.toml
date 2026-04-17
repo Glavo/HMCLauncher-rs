@@ -1,2 +1,5 @@
 [build]
-target = "i686-pc-windows-msvc"
+target = "i686-win7-windows-gnu"
+
+[target.i686-win7-windows-gnu]
+rustflags = ["-C", "link-arg=-municode"]

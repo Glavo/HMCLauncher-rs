@@ -1,36 +1,45 @@
-/*
- * Copyright (C) 2025 Glavo. All rights reserved.
- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
-
-// #![windows_subsystem = "windows"]
+#![no_std]
+#![no_main]
+#![windows_subsystem = "windows"]
+#![allow(non_snake_case)]
 
 #[cfg(not(target_os = "windows"))]
 compile_error!("This crate only works on Windows");
 
-#[cfg(target_os = "windows")]
+extern crate HMCLauncher as hmclauncher;
+
+use core::panic::PanicInfo;
+use windows_sys::Win32::Foundation::HINSTANCE;
+
 #[allow(non_upper_case_globals)]
 #[unsafe(no_mangle)]
-pub static NvOptimusEnablement: i32 = 1;
+pub static NvOptimusEnablement: u32 = 1;
 
-#[cfg(target_os = "windows")]
 #[allow(non_upper_case_globals)]
 #[unsafe(no_mangle)]
-pub static AmdPowerXpressRequestHighPerformance: i32 = 1;
+pub static AmdPowerXpressRequestHighPerformance: u32 = 1;
 
-fn main() {
-    let _ = HMCLauncher::platform::Arch::get();
+#[panic_handler]
+fn panic(_info: &PanicInfo<'_>) -> ! {
+    hmclauncher::abort(101)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn wWinMain(
+    _instance: HINSTANCE,
+    _previous: HINSTANCE,
+    _command_line: *mut u16,
+    _show: i32,
+) -> i32 {
+    hmclauncher::run()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn WinMain(
+    _instance: HINSTANCE,
+    _previous: HINSTANCE,
+    _command_line: *mut u8,
+    _show: i32,
+) -> i32 {
+    hmclauncher::run()
 }

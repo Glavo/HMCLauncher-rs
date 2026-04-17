@@ -19,8 +19,19 @@
 use std::fs;
 use toml::Table;
 
+const HMCL_EXPECTED_JAVA_MAJOR_VERSION: &str = "17";
+
 fn main() {
     let version = ProjectVersion::get();
+
+    println!("cargo:rerun-if-changed=Cargo.toml");
+    println!("cargo:rerun-if-changed=resources/HMCL.ico");
+    println!("cargo:rerun-if-changed=resources/HMCL.rc");
+    println!("cargo:rustc-env=HMCL_LAUNCHER_VERSION={}", version.version);
+    println!(
+        "cargo:rustc-env=HMCL_EXPECTED_JAVA_MAJOR_VERSION_STR={}",
+        HMCL_EXPECTED_JAVA_MAJOR_VERSION
+    );
 
     embed_resource::compile(
         "resources/HMCL.rc",
