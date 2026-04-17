@@ -20,6 +20,8 @@ use windows_sys::core::{PCWSTR, s, w};
 
 use crate::wide::WideString;
 
+/// Hold the launcher's working directory and the file name passed to
+/// `java -jar`.
 pub struct SelfPath {
     pub workdir: WideString,
     pub jar_path: WideString,

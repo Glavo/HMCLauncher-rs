@@ -19,6 +19,8 @@
 use std::fs;
 use toml::Table;
 
+/// Keep the resource metadata in sync with the launcher's minimum supported
+/// Java major version.
 const HMCL_EXPECTED_JAVA_MAJOR_VERSION: &str = "17";
 
 /// Generate version metadata for the Windows resource script and expose it to
@@ -49,6 +51,8 @@ fn main() {
     .unwrap();
 }
 
+/// Hold the four-part semantic version split that the Windows resource script
+/// expects.
 struct ProjectVersion {
     version: String,
     major: String,

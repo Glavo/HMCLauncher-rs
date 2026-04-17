@@ -36,8 +36,8 @@ pub unsafe fn free_bytes(ptr: *mut u8) {
     }
 }
 
-// A minimal Vec-like container backed by the process heap so the launcher stays
-// no_std and does not rely on a global allocator.
+/// A minimal Vec-like container backed by the process heap so the launcher
+/// stays `no_std` and does not rely on a global allocator.
 pub struct HeapVec<T> {
     ptr: *mut T,
     len: usize,

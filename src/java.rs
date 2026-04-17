@@ -24,12 +24,14 @@ use crate::wide::{
     wide_slice_from_ptr,
 };
 
+/// Collect the filesystem and JVM options needed to launch HMCL.
 pub struct JavaOptions {
     pub workdir: WideString,
     pub jar_path: WideString,
     pub jvm_options: Option<WideString>,
 }
 
+/// Represent a four-part Java executable version extracted from PE metadata.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct JavaVersion {
     pub major: u16,
@@ -149,11 +151,13 @@ impl Display for JavaVersion {
     }
 }
 
+/// Pair a Java executable path with the version discovered from its metadata.
 pub struct JavaRuntime {
     pub version: JavaVersion,
     pub executable_path: WideString,
 }
 
+/// Own the set of discovered Java runtimes before launch selection.
 pub struct JavaList {
     pub runtimes: HeapVec<JavaRuntime>,
 }
@@ -337,6 +341,7 @@ pub fn search_java_in_program_files(
     program_files: &WideString,
     java_executable_name: &str,
 ) {
+    // Search the same vendor folders as the upstream launcher.
     const VENDORS: [&str; 7] = [
         "Java",
         "Microsoft",
@@ -402,6 +407,7 @@ pub fn search_java_in_registry(result: &mut JavaList, sub_key: PCWSTR, java_exec
         return;
     }
 
+    // JavaSoft version subkeys are short, so a fixed stack buffer is enough.
     const MAX_KEY_LENGTH: usize = 256;
     let mut java_version = [0u16; MAX_KEY_LENGTH];
     let mut java_home = [0u16; 260];

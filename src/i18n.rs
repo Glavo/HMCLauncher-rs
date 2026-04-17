@@ -1,6 +1,7 @@
 use windows_sys::Win32::Globalization::GetUserDefaultUILanguage;
 use windows_sys::core::{PCWSTR, w};
 
+/// Bundle the small set of localized launcher error messages.
 pub struct I18n {
     pub error_self_path: PCWSTR,
     pub error_invalid_hmcl_java_home: PCWSTR,

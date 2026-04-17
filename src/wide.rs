@@ -7,7 +7,7 @@ use windows_sys::core::{PCWSTR, w};
 
 use crate::heap::{alloc_bytes, free_bytes, realloc_bytes};
 
-// Owned UTF-16 storage that always keeps one trailing NUL for Win32 APIs.
+/// Owned UTF-16 storage that always keeps one trailing NUL for Win32 APIs.
 pub struct WideString {
     ptr: *mut u16,
     len: usize,
@@ -276,6 +276,7 @@ impl Drop for WideString {
     }
 }
 
+/// Render a borrowed UTF-16 slice through Rust's formatting traits.
 pub struct WideDisplay<'a>(pub &'a [u16]);
 
 impl Display for WideDisplay<'_> {

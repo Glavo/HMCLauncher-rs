@@ -11,10 +11,12 @@ extern crate HMCLauncher as hmclauncher;
 use core::panic::PanicInfo;
 use windows_sys::Win32::Foundation::HINSTANCE;
 
+/// Request the high-performance NVIDIA GPU on dual-GPU systems.
 #[allow(non_upper_case_globals)]
 #[unsafe(no_mangle)]
 pub static NvOptimusEnablement: u32 = 1;
 
+/// Request the high-performance AMD GPU on dual-GPU systems.
 #[allow(non_upper_case_globals)]
 #[unsafe(no_mangle)]
 pub static AmdPowerXpressRequestHighPerformance: u32 = 1;

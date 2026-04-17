@@ -9,7 +9,9 @@ use windows_sys::Win32::System::SystemInformation::GetLocalTime;
 
 use crate::wide::{WideDisplay, WideString};
 
+/// Cache whether verbose diagnostic output should be emitted.
 static mut VERBOSE_OUTPUT: bool = false;
+/// Cache the attached console output handle after successful attachment.
 static mut CONSOLE_OUTPUT: HANDLE = ptr::null_mut();
 
 /// Record whether verbose logging should be emitted for discovery steps.
