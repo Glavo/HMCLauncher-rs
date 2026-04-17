@@ -16,21 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// #![windows_subsystem = "windows"]
+pub mod platform;
 
-#[cfg(not(target_os = "windows"))]
-compile_error!("This crate only works on Windows");
+pub fn main2() {
 
-#[cfg(target_os = "windows")]
-#[allow(non_upper_case_globals)]
-#[unsafe(no_mangle)]
-pub static NvOptimusEnablement: i32 = 1;
-
-#[cfg(target_os = "windows")]
-#[allow(non_upper_case_globals)]
-#[unsafe(no_mangle)]
-pub static AmdPowerXpressRequestHighPerformance: i32 = 1;
-
-fn main() {
-    let _ = HMCLauncher::platform::Arch::get();
 }

@@ -16,9 +16,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#[cfg(not(target_os = "windows"))]
-compile_error!("This crate only works on Windows");
-
 use std::fs;
 use toml::Table;
 
