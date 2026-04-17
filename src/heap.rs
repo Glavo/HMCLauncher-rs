@@ -6,14 +6,19 @@ use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::System::Memory::{GetProcessHeap, HeapAlloc, HeapFree, HeapReAlloc};
 
 #[inline]
+/// Return the Win32 process heap used for all dynamic launcher storage.
 fn process_heap() -> HANDLE {
     unsafe { GetProcessHeap() }
 }
 
+/// Allocate raw bytes from the process heap, never requesting a zero-sized
+/// block from Win32.
 pub unsafe fn alloc_bytes(bytes: usize) -> *mut u8 {
     unsafe { HeapAlloc(process_heap(), 0, bytes.max(1)) as *mut u8 }
 }
 
+/// Grow or create a raw heap block while keeping the same Win32 allocation
+/// source as the rest of the launcher.
 pub unsafe fn realloc_bytes(ptr: *mut u8, bytes: usize) -> *mut u8 {
     if ptr.is_null() {
         unsafe { alloc_bytes(bytes) }
@@ -22,6 +27,7 @@ pub unsafe fn realloc_bytes(ptr: *mut u8, bytes: usize) -> *mut u8 {
     }
 }
 
+/// Free a raw heap block if it was previously allocated.
 pub unsafe fn free_bytes(ptr: *mut u8) {
     if !ptr.is_null() {
         unsafe {
@@ -30,6 +36,8 @@ pub unsafe fn free_bytes(ptr: *mut u8) {
     }
 }
 
+// A minimal Vec-like container backed by the process heap so the launcher stays
+// no_std and does not rely on a global allocator.
 pub struct HeapVec<T> {
     ptr: *mut T,
     len: usize,
@@ -37,6 +45,7 @@ pub struct HeapVec<T> {
 }
 
 impl<T> HeapVec<T> {
+    /// Create an empty vector backed by the process heap.
     pub const fn new() -> Self {
         Self {
             ptr: NonNull::<T>::dangling().as_ptr(),
@@ -45,10 +54,12 @@ impl<T> HeapVec<T> {
         }
     }
 
+    /// Report whether the vector contains any initialized elements.
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
+    /// Borrow the initialized prefix as an immutable slice.
     pub fn as_slice(&self) -> &[T] {
         if self.len == 0 {
             &[]
@@ -57,6 +68,7 @@ impl<T> HeapVec<T> {
         }
     }
 
+    /// Borrow the initialized prefix as a mutable slice.
     pub fn as_mut_slice(&mut self) -> &mut [T] {
         if self.len == 0 {
             &mut []
@@ -65,10 +77,12 @@ impl<T> HeapVec<T> {
         }
     }
 
+    /// Iterate over the initialized elements.
     pub fn iter(&self) -> slice::Iter<'_, T> {
         self.as_slice().iter()
     }
 
+    /// Append one element, growing the backing storage if needed.
     pub fn push(&mut self, value: T) -> bool {
         if size_of::<T>() == 0 {
             self.len += 1;
@@ -87,6 +101,7 @@ impl<T> HeapVec<T> {
         true
     }
 
+    /// Reserve space for more elements using a simple growth strategy.
     pub fn reserve(&mut self, additional: usize) -> bool {
         if size_of::<T>() == 0 {
             return true;
@@ -100,6 +115,8 @@ impl<T> HeapVec<T> {
             return true;
         }
 
+        // A simple doubling strategy is enough here because launcher-side
+        // collections stay small and short-lived.
         let mut new_cap = if self.cap == 0 {
             required.max(4)
         } else {
@@ -138,6 +155,8 @@ impl<T> HeapVec<T> {
         true
     }
 
+    /// Sort the initialized prefix in-place with insertion sort to keep the
+    /// implementation allocator-free and tiny.
     pub fn sort_by<F>(&mut self, mut compare: F)
     where
         F: FnMut(&T, &T) -> Ordering,
@@ -155,6 +174,7 @@ impl<T> HeapVec<T> {
 }
 
 impl<T> Drop for HeapVec<T> {
+    /// Drop initialized elements and release the backing heap allocation.
     fn drop(&mut self) {
         if needs_drop::<T>() {
             for index in 0..self.len {

@@ -21,6 +21,8 @@ use toml::Table;
 
 const HMCL_EXPECTED_JAVA_MAJOR_VERSION: &str = "17";
 
+/// Generate version metadata for the Windows resource script and expose it to
+/// the crate as build-time environment variables.
 fn main() {
     let version = ProjectVersion::get();
 
@@ -56,6 +58,8 @@ struct ProjectVersion {
 }
 
 impl ProjectVersion {
+    /// Read the package version from `Cargo.toml` and split it into the four
+    /// numeric components expected by the resource script.
     fn get() -> ProjectVersion {
         let project_properties = fs::read_to_string("Cargo.toml")
             .unwrap()

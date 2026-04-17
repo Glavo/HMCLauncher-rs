@@ -7,6 +7,7 @@ pub struct I18n {
     pub error_java_not_found: PCWSTR,
 }
 
+/// Pick the small built-in message set that matches the user's UI language.
 pub fn current() -> I18n {
     if unsafe { GetUserDefaultUILanguage() } == 2052 {
         I18n {

@@ -33,18 +33,24 @@ pub enum Arch {
 }
 
 impl Arch {
+    /// Detect the native system architecture while staying compatible with
+    /// Windows 7.
     pub fn current() -> Self {
         unsafe {
             let kernel32: HMODULE = GetModuleHandleW(w!("Kernel32.dll"));
             if !kernel32.is_null() {
                 let proc = GetProcAddress(kernel32, s!("IsWow64Process2"));
                 if let Some(raw_proc) = proc {
+                    // Resolve the newer API dynamically so the launcher still
+                    // runs on Windows 7 where the symbol does not exist.
                     type IsWow64Process2Fn = unsafe extern "system" fn(
                         *mut core::ffi::c_void,
                         *mut u16,
                         *mut u16,
                     ) -> i32;
 
+                    // Use the native machine type instead of the process type
+                    // so a 32-bit build still sees a 64-bit host correctly.
                     let mut process_machine = 0u16;
                     let mut native_machine = 0u16;
                     let func: IsWow64Process2Fn = core::mem::transmute(raw_proc);
@@ -63,6 +69,8 @@ impl Arch {
                 }
             }
 
+            // Fall back to the older system-info path when the modern API is
+            // unavailable or fails.
             let mut system_info: SYSTEM_INFO = zeroed();
             GetNativeSystemInfo(&mut system_info);
             match system_info.Anonymous.Anonymous.wProcessorArchitecture {
@@ -73,6 +81,8 @@ impl Arch {
         }
     }
 
+    /// Return the bundled runtime directory name that matches this
+    /// architecture.
     pub fn bundled_jre_dir(self) -> &'static str {
         match self {
             Self::ARM64 => "jre-arm64",
@@ -81,6 +91,7 @@ impl Arch {
         }
     }
 
+    /// Return the HMCL-managed runtime directory name for this architecture.
     pub fn hmcl_java_dir(self) -> &'static str {
         match self {
             Self::ARM64 => "windows-arm64",
@@ -89,6 +100,7 @@ impl Arch {
         }
     }
 
+    /// Return the HMCL download page for this architecture.
     pub fn download_link(self) -> PCWSTR {
         match self {
             Self::ARM64 => w!("https://docs.hmcl.net/downloads/windows/arm64.html"),
@@ -97,6 +109,7 @@ impl Arch {
         }
     }
 
+    /// Return a short human-readable architecture name for logs.
     pub fn display_name(self) -> &'static str {
         match self {
             Self::ARM64 => "arm64",
@@ -106,6 +119,8 @@ impl Arch {
     }
 }
 
+/// Split the launcher's full module path into its working directory and file
+/// name.
 pub fn get_self_path() -> Option<SelfPath> {
     let mut size = MAX_PATH as usize;
     let mut buffer = WideString::new();
@@ -129,6 +144,7 @@ pub fn get_self_path() -> Option<SelfPath> {
             break;
         }
 
+        // Keep growing until the full path fits instead of assuming MAX_PATH.
         size = size.checked_add(MAX_PATH as usize)?;
     }
 
@@ -146,6 +162,7 @@ pub fn get_self_path() -> Option<SelfPath> {
     })
 }
 
+/// Read an environment variable into owned UTF-16 storage.
 pub fn get_env_var(name: PCWSTR) -> Option<WideString> {
     let mut size = MAX_PATH as usize;
     let mut output = WideString::new();
@@ -161,6 +178,8 @@ pub fn get_env_var(name: PCWSTR) -> Option<WideString> {
         let result = unsafe { GetEnvironmentVariableW(name, output.as_mut_ptr(), size as u32) };
 
         if result == 0 {
+            // Zero means either "missing" or "present but empty"; LastError is
+            // what distinguishes the two cases.
             let error = unsafe { GetLastError() };
             if error != ERROR_SUCCESS {
                 return None;
@@ -181,10 +200,12 @@ pub fn get_env_var(name: PCWSTR) -> Option<WideString> {
     None
 }
 
+/// Read an environment variable that represents a filesystem path.
 pub fn get_env_path(name: PCWSTR) -> Option<WideString> {
     get_env_var(name)
 }
 
+/// Treat only ordinary filesystem files as valid launcher targets.
 pub fn is_regular_file(path: &WideString) -> bool {
     let attributes = unsafe { GetFileAttributesW(path.as_pcwstr()) };
     attributes != INVALID_FILE_ATTRIBUTES

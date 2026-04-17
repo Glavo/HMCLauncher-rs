@@ -16,6 +16,7 @@ use crate::java::{
 use crate::platform::{Arch, get_env_path, get_env_var, get_self_path, is_regular_file};
 use crate::wide::{WideDisplay, WideString};
 
+/// Execute the launcher flow and return a WinMain-style exit code.
 pub fn run() -> i32 {
     let verbose_output = !matches!(
         get_env_var(w!("HMCL_LAUNCHER_VERBOSE_OUTPUT")),
@@ -72,6 +73,8 @@ pub fn run() -> i32 {
         ));
     }
 
+    // Search order intentionally matches the original launcher so bundled and
+    // HMCL-managed runtimes win before wider system discovery.
     if let Some(hmcl_java_home) = get_env_path(w!("HMCL_JAVA_HOME")) {
         if !hmcl_java_home.is_empty() {
             log_fmt(format_args!(
@@ -152,6 +155,8 @@ pub fn run() -> i32 {
 
     let mut java_runtimes = JavaList::new();
 
+    // Prefer per-instance HMCL-managed runtimes in the launcher's working
+    // directory before checking global locations.
     if let Some(mut hmcl_java_dir) = options.workdir.try_clone() {
         if hmcl_java_dir.push_path_component_str(".hmcl")
             && hmcl_java_dir.push_path_component_str("java")
@@ -233,6 +238,8 @@ pub fn run() -> i32 {
     } else {
         java_runtimes.sort_by_version();
 
+        // Emit the full runtime list only in verbose mode because it can be
+        // fairly noisy on machines with several JDKs installed.
         if crate::debug::verbose_output() {
             let mut message = WideString::new();
             if message.push_str("Found Java runtimes:") {
@@ -251,6 +258,7 @@ pub fn run() -> i32 {
         let runtimes = java_runtimes.runtimes.as_slice();
         let mut index = runtimes.len();
         while index > 0 {
+            // Try higher versions first after sorting ascending.
             index -= 1;
             if launch_jvm(&runtimes[index].executable_path, &options) {
                 return 0;
@@ -259,6 +267,8 @@ pub fn run() -> i32 {
     }
 
     unsafe {
+        // Keep the original UX: offer to open the architecture-specific Java
+        // download page only after every discovery path has failed.
         if MessageBoxW(
             ptr::null_mut(),
             i18n.error_java_not_found,

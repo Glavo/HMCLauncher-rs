@@ -39,11 +39,15 @@ pub struct JavaVersion {
 }
 
 impl JavaVersion {
+    /// Return the sentinel used when a Java version cannot be determined.
     pub fn invalid() -> Self {
         Self::default()
     }
 
+    /// Read the PE version resource from a Java executable.
     pub fn from_executable(path: &WideString) -> Self {
+        // Match the C++ launcher and read the executable's version resource
+        // instead of spawning `java -version`.
         let size = unsafe { GetFileVersionInfoSizeW(path.as_pcwstr(), ptr::null_mut()) };
         if size == 0 {
             return Self::invalid();
@@ -62,6 +66,8 @@ impl JavaVersion {
             return Self::invalid();
         }
 
+        // Query the root `VS_FIXEDFILEINFO` block to extract the four numeric
+        // version components in the same format as the upstream launcher.
         let mut info_ptr = ptr::null_mut();
         let mut info_len = 0u32;
         let result = unsafe { VerQueryValueW(data.cast(), w!("\\"), &mut info_ptr, &mut info_len) };
@@ -87,6 +93,7 @@ impl JavaVersion {
     }
 
     #[cfg(test)]
+    /// Parse a UTF-16 Java version string for unit tests.
     pub fn from_utf16(value: &[u16]) -> Self {
         let mut parts = [0u16; 4];
         let mut index = 0usize;
@@ -121,12 +128,14 @@ impl JavaVersion {
         }
     }
 
+    /// Check whether the discovered runtime meets HMCL's minimum Java level.
     pub fn is_acceptable(self) -> bool {
         self.major >= HMCL_EXPECTED_JAVA_MAJOR_VERSION
     }
 }
 
 impl Display for JavaVersion {
+    /// Format the Java version for logs.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         if self.major == 0 {
             formatter.write_str("Unknown")
@@ -150,12 +159,14 @@ pub struct JavaList {
 }
 
 impl JavaList {
+    /// Create an empty runtime list.
     pub fn new() -> Self {
         Self {
             runtimes: HeapVec::new(),
         }
     }
 
+    /// Add one candidate runtime when it exists, is unique, and is new enough.
     pub fn try_add(&mut self, java_executable: WideString) -> bool {
         if !is_regular_file(&java_executable) {
             return false;
@@ -196,12 +207,15 @@ impl JavaList {
         })
     }
 
+    /// Sort runtimes from lowest to highest version so callers can try the best
+    /// match last-to-first.
     pub fn sort_by_version(&mut self) {
         self.runtimes
             .sort_by(|left, right| left.version.cmp(&right.version));
     }
 }
 
+/// Launch HMCL with a specific Java executable.
 pub fn launch_jvm(java_executable_path: &WideString, options: &JavaOptions) -> bool {
     let mut command = WideString::new();
     if !command.push_char('"')
@@ -224,6 +238,8 @@ pub fn launch_jvm(java_executable_path: &WideString, options: &JavaOptions) -> b
         }
     }
 
+    // Preserve the upstream behavior exactly, including using the current exe
+    // file name as the `-jar` target.
     if !command.push_str(" -jar \"")
         || !command.push_slice(options.jar_path.as_slice())
         || !command.push_char('"')
@@ -235,6 +251,8 @@ pub fn launch_jvm(java_executable_path: &WideString, options: &JavaOptions) -> b
     startup_info.cb = size_of::<STARTUPINFOW>() as u32;
 
     let mut process_info: PROCESS_INFORMATION = unsafe { zeroed() };
+    // Let CreateProcessW mutate the command line in-place, which is why the
+    // buffer is owned and writable.
     let result = unsafe {
         CreateProcessW(
             ptr::null(),
@@ -269,6 +287,7 @@ pub fn launch_jvm(java_executable_path: &WideString, options: &JavaOptions) -> b
     }
 }
 
+/// Search one directory for subdirectories that look like Java homes.
 pub fn search_java_in_dir(result: &mut JavaList, basedir: &WideString, java_executable_name: &str) {
     log_verbose_fmt(format_args!(
         "Searching in directory: {}",
@@ -289,6 +308,7 @@ pub fn search_java_in_dir(result: &mut JavaList, basedir: &WideString, java_exec
     }
 
     loop {
+        // Treat each child as a potential Java home and append `bin\java*.exe`.
         let name = unsafe { wide_slice_from_ptr(data.cFileName.as_ptr()) };
         if !is_dot_or_dot_dot(name) {
             if let Some(mut candidate) = basedir.try_clone() {
@@ -311,6 +331,7 @@ pub fn search_java_in_dir(result: &mut JavaList, basedir: &WideString, java_exec
     }
 }
 
+/// Probe the common vendor directories under Program Files.
 pub fn search_java_in_program_files(
     result: &mut JavaList,
     program_files: &WideString,
@@ -336,6 +357,7 @@ pub fn search_java_in_program_files(
     }
 }
 
+/// Enumerate Java installations registered under a specific JavaSoft key.
 pub fn search_java_in_registry(result: &mut JavaList, sub_key: PCWSTR, java_executable_name: &str) {
     log_verbose_fmt(format_args!(
         "Searching in registry key: HKEY_LOCAL_MACHINE\\{}",
@@ -403,6 +425,8 @@ pub fn search_java_in_registry(result: &mut JavaList, sub_key: PCWSTR, java_exec
         }
         java_version[name_len as usize] = 0;
 
+        // Each subkey is a version label whose `JavaHome` value points at the
+        // installation root.
         let mut value_len = (java_home.len() * size_of::<u16>()) as u32;
         let get_result = unsafe {
             RegGetValueW(
@@ -438,6 +462,8 @@ pub fn search_java_in_registry(result: &mut JavaList, sub_key: PCWSTR, java_exec
     }
 }
 
+/// Parse `%PATH%` and test each directory for a directly accessible Java
+/// executable.
 pub fn search_java_in_path(result: &mut JavaList, path: &[u16], java_executable_name: &str) {
     let oracle_java = unsafe { wide_slice_from_ptr(w!("\\Common Files\\Oracle\\Java\\")) };
     let mut start = 0usize;
@@ -453,6 +479,8 @@ pub fn search_java_in_path(result: &mut JavaList, path: &[u16], java_executable_
             if let Some(mut java_executable) = WideString::from_utf16(entry) {
                 if java_executable.push_path_component_str(java_executable_name) {
                     if wide_contains(java_executable.as_slice(), oracle_java) {
+                        // Keep the upstream exclusion for Oracle's shared shim
+                        // directory, which often is not a real JVM install.
                         log_verbose_fmt(format_args!(
                             "Ignore Oracle Java {}",
                             WideDisplay(java_executable.as_slice())
@@ -477,6 +505,7 @@ mod tests {
     use super::JavaVersion;
 
     #[test]
+    /// Parse a modern feature-release Java version string.
     fn parse_java_version() {
         let version =
             JavaVersion::from_utf16(&"17.0.15_9".encode_utf16().collect::<std::vec::Vec<_>>());
@@ -487,6 +516,7 @@ mod tests {
     }
 
     #[test]
+    /// Normalize a legacy `1.x` Java version to its effective major release.
     fn parse_legacy_java_version() {
         let version =
             JavaVersion::from_utf16(&"1.8.0_321".encode_utf16().collect::<std::vec::Vec<_>>());
