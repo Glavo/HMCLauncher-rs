@@ -1,26 +1,21 @@
 use core::char::{REPLACEMENT_CHARACTER, decode_utf16};
 use core::fmt::{self, Display, Formatter, Write};
-use core::mem::size_of;
 use core::ptr::{self, NonNull};
 use core::slice;
 use windows_sys::core::{PCWSTR, w};
 
-use crate::heap::{alloc_bytes, free_bytes, realloc_bytes};
-
 /// Owned UTF-16 storage that always keeps one trailing NUL for Win32 APIs.
 pub struct WideString {
-    ptr: *mut u16,
+    data: Vec<u16>,
     len: usize,
-    cap: usize,
 }
 
 impl WideString {
     /// Create an empty UTF-16 buffer with no heap allocation.
     pub const fn new() -> Self {
         Self {
-            ptr: NonNull::<u16>::dangling().as_ptr(),
+            data: Vec::new(),
             len: 0,
-            cap: 0,
         }
     }
 
@@ -59,19 +54,27 @@ impl WideString {
         if self.len == 0 {
             &[]
         } else {
-            unsafe { slice::from_raw_parts(self.ptr, self.len) }
+            &self.data[..self.len]
         }
     }
 
     /// Expose the buffer as a Win32 `PCWSTR`.
     pub fn as_pcwstr(&self) -> PCWSTR {
-        if self.len == 0 { w!("") } else { self.ptr }
+        if self.len == 0 {
+            w!("")
+        } else {
+            self.data.as_ptr()
+        }
     }
 
     /// Expose the mutable storage for Win32 APIs that fill caller-owned
     /// buffers.
     pub fn as_mut_ptr(&mut self) -> *mut u16 {
-        self.ptr
+        if self.data.is_empty() {
+            NonNull::<u16>::dangling().as_ptr()
+        } else {
+            self.data.as_mut_ptr()
+        }
     }
 
     /// Clone the string into a second heap-backed buffer.
@@ -100,61 +103,21 @@ impl WideString {
     /// Reset the logical length while preserving any existing allocation.
     pub fn clear(&mut self) {
         self.len = 0;
-        if self.cap != 0 {
-            unsafe {
-                *self.ptr = 0;
-            }
+        if !self.data.is_empty() {
+            self.data[0] = 0;
         }
     }
 
     /// Ensure the buffer can hold `required` code units plus one trailing NUL.
     pub fn reserve_exact(&mut self, required: usize) -> bool {
-        if required <= self.cap {
-            return true;
-        }
-
-        let mut new_cap = if self.cap == 0 {
-            required.max(16)
-        } else {
-            self.cap
-        };
-        while new_cap < required {
-            let Some(doubled) = new_cap.checked_mul(2) else {
-                new_cap = required;
-                break;
-            };
-            if doubled <= new_cap {
-                new_cap = required;
-                break;
-            }
-            new_cap = doubled;
-        }
-
-        let Some(units) = new_cap.checked_add(1) else {
-            return false;
-        };
-        let Some(bytes) = units.checked_mul(size_of::<u16>()) else {
+        let Some(units) = required.checked_add(1) else {
             return false;
         };
 
-        let new_ptr = unsafe {
-            if self.cap == 0 {
-                alloc_bytes(bytes)
-            } else {
-                realloc_bytes(self.ptr.cast(), bytes)
-            }
-        } as *mut u16;
-
-        if new_ptr.is_null() {
-            return false;
-        }
-
-        self.ptr = new_ptr;
-        self.cap = new_cap;
-        // Preserve the Win32 invariant that the logical string is always
-        // terminated, even when the buffer is reused.
-        unsafe {
-            *self.ptr.add(self.len) = 0;
+        if self.data.len() < units {
+            self.data.resize(units, 0);
+        } else if !self.data.is_empty() {
+            self.data[self.len] = 0;
         }
         true
     }
@@ -162,12 +125,11 @@ impl WideString {
     /// Update the logical length after a Win32 API wrote directly into the
     /// buffer.
     pub unsafe fn set_len(&mut self, len: usize) {
-        self.len = len;
-        if self.cap != 0 {
-            unsafe {
-                *self.ptr.add(len) = 0;
-            }
+        if self.data.len() <= len {
+            self.data.resize(len + 1, 0);
         }
+        self.len = len;
+        self.data[len] = 0;
     }
 
     /// Append a single Unicode scalar value.
@@ -191,9 +153,13 @@ impl WideString {
         }
 
         unsafe {
-            ptr::copy_nonoverlapping(value.as_ptr(), self.ptr.add(self.len), value.len());
+            ptr::copy_nonoverlapping(
+                value.as_ptr(),
+                self.data.as_mut_ptr().add(self.len),
+                value.len(),
+            );
             self.len = required;
-            *self.ptr.add(self.len) = 0;
+            *self.data.as_mut_ptr().add(self.len) = 0;
         }
         true
     }
@@ -210,15 +176,11 @@ impl WideString {
 
         let mut offset = self.len;
         for unit in value.encode_utf16() {
-            unsafe {
-                *self.ptr.add(offset) = unit;
-            }
+            self.data[offset] = unit;
             offset += 1;
         }
         self.len = offset;
-        unsafe {
-            *self.ptr.add(self.len) = 0;
-        }
+        self.data[self.len] = 0;
         true
     }
 
@@ -261,17 +223,6 @@ impl Write for WideString {
             Ok(())
         } else {
             Err(fmt::Error)
-        }
-    }
-}
-
-impl Drop for WideString {
-    /// Release the owned UTF-16 buffer.
-    fn drop(&mut self) {
-        if self.cap != 0 {
-            unsafe {
-                free_bytes(self.ptr.cast());
-            }
         }
     }
 }

@@ -17,7 +17,6 @@ use windows_sys::core::{PCWSTR, w};
 
 use crate::HMCL_EXPECTED_JAVA_MAJOR_VERSION;
 use crate::debug::{log_fmt, log_verbose_fmt};
-use crate::heap::{HeapVec, alloc_bytes, free_bytes};
 use crate::platform::is_regular_file;
 use crate::wide::{
     WideDisplay, WideString, is_dot_or_dot_dot, trim_wide_whitespace, wide_contains,
@@ -55,16 +54,10 @@ impl JavaVersion {
             return Self::invalid();
         }
 
-        let data = unsafe { alloc_bytes(size as usize) };
-        if data.is_null() {
-            return Self::invalid();
-        }
-
-        let result = unsafe { GetFileVersionInfoW(path.as_pcwstr(), 0, size, data.cast()) };
+        let mut data = vec![0u8; size as usize];
+        let result =
+            unsafe { GetFileVersionInfoW(path.as_pcwstr(), 0, size, data.as_mut_ptr().cast()) };
         if result == 0 {
-            unsafe {
-                free_bytes(data);
-            }
             return Self::invalid();
         }
 
@@ -72,26 +65,20 @@ impl JavaVersion {
         // version components in the same format as the upstream launcher.
         let mut info_ptr = ptr::null_mut();
         let mut info_len = 0u32;
-        let result = unsafe { VerQueryValueW(data.cast(), w!("\\"), &mut info_ptr, &mut info_len) };
+        let result = unsafe {
+            VerQueryValueW(data.as_ptr().cast(), w!("\\"), &mut info_ptr, &mut info_len)
+        };
         if result == 0 || info_ptr.is_null() || info_len < size_of::<VS_FIXEDFILEINFO>() as u32 {
-            unsafe {
-                free_bytes(data);
-            }
             return Self::invalid();
         }
 
         let info = unsafe { &*(info_ptr as *const VS_FIXEDFILEINFO) };
-        let version = Self {
+        Self {
             major: ((info.dwFileVersionMS >> 16) & 0xFFFF) as u16,
             minor: (info.dwFileVersionMS & 0xFFFF) as u16,
             build: ((info.dwFileVersionLS >> 16) & 0xFFFF) as u16,
             revision: (info.dwFileVersionLS & 0xFFFF) as u16,
-        };
-
-        unsafe {
-            free_bytes(data);
         }
-        version
     }
 
     #[cfg(test)]
@@ -159,14 +146,14 @@ pub struct JavaRuntime {
 
 /// Own the set of discovered Java runtimes before launch selection.
 pub struct JavaList {
-    pub runtimes: HeapVec<JavaRuntime>,
+    pub runtimes: Vec<JavaRuntime>,
 }
 
 impl JavaList {
     /// Create an empty runtime list.
     pub fn new() -> Self {
         Self {
-            runtimes: HeapVec::new(),
+            runtimes: Vec::new(),
         }
     }
 
@@ -208,14 +195,14 @@ impl JavaList {
         self.runtimes.push(JavaRuntime {
             version,
             executable_path: java_executable,
-        })
+        });
+        true
     }
 
     /// Sort runtimes from lowest to highest version so callers can try the best
     /// match last-to-first.
     pub fn sort_by_version(&mut self) {
-        self.runtimes
-            .sort_by(|left, right| left.version.cmp(&right.version));
+        self.runtimes.sort_by(|left, right| left.version.cmp(&right.version));
     }
 }
 

@@ -12,7 +12,6 @@ windows-sys = { version = "0.59.0", features = [
     "Win32_System_Console",
     "Win32_System_Environment",
     "Win32_System_LibraryLoader",
-    "Win32_System_Memory",
     "Win32_System_Registry",
     "Win32_System_SystemInformation",
     "Win32_System_Threading",
