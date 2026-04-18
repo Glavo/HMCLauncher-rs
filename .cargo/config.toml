@@ -8,8 +8,14 @@ target = "i686-win7-windows-msvc"
 rustflags = ["-C", "link-arg=-municode"]
 
 [target.i686-win7-windows-msvc]
-# MSVC needs the wide GUI CRT entrypoint instead of the GNU -municode flag.
-rustflags = ["-C", "link-arg=/ENTRY:wWinMainCRTStartup"]
+# Match the legacy CMake /MT build so Windows 7 does not need the VC++ CRT/UCRT
+# installed separately, while still using the wide GUI entrypoint.
+rustflags = [
+    "-C",
+    "link-arg=/ENTRY:wWinMainCRTStartup",
+    "-C",
+    "target-feature=+crt-static",
+]
 
 [unstable]
 build-std = ["core", "compiler_builtins"]
