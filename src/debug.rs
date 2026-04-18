@@ -80,10 +80,11 @@ pub fn log_wide(message: &[u16]) {
     // Build the full line in memory first so the console sees a single write.
     if write!(
         &mut line,
-        "[{:02}:{:02}:{:02}] [HMCLauncher] {}",
+        "[{:02}:{:02}:{:02}.{:03}] [HMCLauncher] {}",
         time.wHour,
         time.wMinute,
         time.wSecond,
+        time.wMilliseconds,
         WideDisplay(message)
     )
     .is_err()
