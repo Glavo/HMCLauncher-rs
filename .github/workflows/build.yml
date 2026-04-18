@@ -56,8 +56,8 @@ jobs:
           archive: false
       - name: Create release
         if: ${{ github.ref_type == 'tag' }}
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            target/i686-win7-windows-msvc/release/HMCLauncher.exe
-            target/i686-win7-windows-msvc/release/HMCLauncher.exe.sha256
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create $env:RELEASE_TAG $env:LAUNCHER_PATH --verify-tag
