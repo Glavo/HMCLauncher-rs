@@ -11,6 +11,7 @@ jobs:
       contents: write
     env:
       LAUNCHER_PATH: target\i686-win7-windows-msvc\release\HMCLauncher.exe
+      RUST_TOOLCHAIN: nightly-2026-04-16
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
@@ -23,7 +24,7 @@ jobs:
         run: echo "SHORT_SHA=$("${{ github.sha }}".Substring(0, 7))" >> $env:GITHUB_ENV
       - name: Setup Rust
         shell: pwsh
-        run: rustup toolchain install nightly --profile minimal --component rust-src --target i686-win7-windows-msvc
+        run: rustup toolchain install $env:RUST_TOOLCHAIN --profile minimal --component rust-src
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -33,7 +34,7 @@ jobs:
           cache: gradle
       - name: Build HMCLauncher
         shell: pwsh
-        run: cargo +nightly build --release --locked
+        run: cargo build --release --locked
       - name: Create checksum file
         shell: pwsh
         run: Out-File -InputObject (Get-FileHash -Path $env:LAUNCHER_PATH -Algorithm SHA256).Hash.ToLower() -FilePath "$env:LAUNCHER_PATH.sha256" -NoNewline
