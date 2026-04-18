@@ -10,8 +10,9 @@ mod launcher;
 pub mod platform;
 mod wide;
 
-/// Mirror HMCL's current minimum required Java major version.
+/// The minimum required Java major version.
 pub(crate) const HMCL_EXPECTED_JAVA_MAJOR_VERSION: u16 = 17;
+
 /// Expose the build-script-generated launcher version string to the runtime.
 pub(crate) const HMCL_LAUNCHER_VERSION: &str = env!("HMCL_LAUNCHER_VERSION");
 

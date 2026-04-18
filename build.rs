@@ -21,9 +21,6 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use toml::Table;
 
-/// Keep the resource metadata in sync with the launcher's minimum supported
-/// Java major version.
-const HMCL_EXPECTED_JAVA_MAJOR_VERSION: &str = "17";
 /// Point at the launcher's Windows resource script.
 const RESOURCE_FILE: &str = "resources/HMCL.rc";
 
@@ -47,10 +44,6 @@ fn main() {
     println!("cargo:rerun-if-env-changed=RC_{target}");
     println!("cargo:rerun-if-env-changed=RC_{}", target.replace('-', "_"));
     println!("cargo:rustc-env=HMCL_LAUNCHER_VERSION={}", version.version);
-    println!(
-        "cargo:rustc-env=HMCL_EXPECTED_JAVA_MAJOR_VERSION_STR={}",
-        HMCL_EXPECTED_JAVA_MAJOR_VERSION
-    );
 
     if target.ends_with("-windows-msvc") {
         embed_resource::compile(RESOURCE_FILE, &macros)
