@@ -1,2 +1,7 @@
 /target
+/target-hosttest
+/target-lld-test
+/target-stable-test
+/target-test-msvc
 /.idea
+/.cargo/local.toml

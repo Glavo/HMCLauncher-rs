@@ -1,5 +1,10 @@
+include = [{ path = "local.toml", optional = true }]
+
 [build]
 target = "i686-win7-windows-gnu"
 
 [target.i686-win7-windows-gnu]
 rustflags = ["-C", "link-arg=-municode"]
+
+[unstable]
+build-std = ["core", "compiler_builtins"]
