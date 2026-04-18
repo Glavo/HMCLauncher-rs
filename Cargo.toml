@@ -1,6 +1,6 @@
 [package]
 name = "HMCLauncher"
-version = "3.7.0+0"
+version = "2026.1.0+0"
 edition = "2024"
 
 [dependencies]
