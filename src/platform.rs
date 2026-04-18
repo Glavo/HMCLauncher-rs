@@ -19,12 +19,13 @@ use windows_sys::Win32::System::Threading::GetCurrentProcess;
 use windows_sys::core::{PCWSTR, s, w};
 
 use crate::wide::WideString;
+use crate::wide_path::WidePathBuf;
 
 /// Hold the launcher's working directory and the file name passed to
 /// `java -jar`.
 pub struct SelfPath {
-    pub workdir: WideString,
-    pub jar_path: WideString,
+    pub workdir: WidePathBuf,
+    pub jar_path: WidePathBuf,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -159,8 +160,8 @@ pub fn get_self_path() -> Option<SelfPath> {
     }
 
     Some(SelfPath {
-        workdir: WideString::from_utf16(&path[..slash])?,
-        jar_path: WideString::from_utf16(&path[slash + 1..])?,
+        workdir: WidePathBuf::from_utf16(&path[..slash])?,
+        jar_path: WidePathBuf::from_utf16(&path[slash + 1..])?,
     })
 }
 
@@ -203,12 +204,12 @@ pub fn get_env_var(name: PCWSTR) -> Option<WideString> {
 }
 
 /// Read an environment variable that represents a filesystem path.
-pub fn get_env_path(name: PCWSTR) -> Option<WideString> {
-    get_env_var(name)
+pub fn get_env_path(name: PCWSTR) -> Option<WidePathBuf> {
+    Some(WidePathBuf::from_wide_string(get_env_var(name)?))
 }
 
 /// Treat only ordinary filesystem files as valid launcher targets.
-pub fn is_regular_file(path: &WideString) -> bool {
+pub fn is_regular_file(path: &WidePathBuf) -> bool {
     let attributes = unsafe { GetFileAttributesW(path.as_pcwstr()) };
     attributes != INVALID_FILE_ATTRIBUTES
         && (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0

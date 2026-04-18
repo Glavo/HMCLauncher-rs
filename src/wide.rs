@@ -183,36 +183,6 @@ impl WideString {
         self.data[self.len] = 0;
         true
     }
-
-    /// Append `\` when the current path does not already end with a separator.
-    pub fn push_path_separator(&mut self) -> bool {
-        if self.is_empty() {
-            return true;
-        }
-
-        let last = self.as_slice()[self.len - 1];
-        if last == b'\\' as u16 || last == b'/' as u16 {
-            true
-        } else {
-            self.push_char('\\')
-        }
-    }
-
-    /// Append one UTF-16 path component, inserting a separator if required.
-    pub fn push_path_component(&mut self, value: &[u16]) -> bool {
-        if value.is_empty() {
-            return true;
-        }
-        self.push_path_separator() && self.push_slice(value)
-    }
-
-    /// Append one UTF-8 path component, inserting a separator if required.
-    pub fn push_path_component_str(&mut self, value: &str) -> bool {
-        if value.is_empty() {
-            return true;
-        }
-        self.push_path_separator() && self.push_str(value)
-    }
 }
 
 impl Write for WideString {
@@ -311,7 +281,7 @@ fn wide_is_whitespace(value: u16) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{WideString, trim_wide_whitespace, wide_contains};
+    use super::{WideString, trim_wide_whitespace};
 
     #[test]
     /// Trim surrounding whitespace while keeping the inner contents unchanged.
@@ -322,13 +292,5 @@ mod tests {
             trimmed,
             "hello".encode_utf16().collect::<std::vec::Vec<_>>()
         );
-    }
-
-    #[test]
-    /// Find a path fragment inside a UTF-16 path string.
-    fn substring_search() {
-        let value = WideString::from_str("C:\\Common Files\\Oracle\\Java\\bin").unwrap();
-        let needle = WideString::from_str("\\Common Files\\Oracle\\Java\\").unwrap();
-        assert!(wide_contains(value.as_slice(), needle.as_slice()));
     }
 }

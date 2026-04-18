@@ -9,6 +9,7 @@ mod java;
 mod launcher;
 pub mod platform;
 mod wide;
+mod wide_path;
 
 /// The minimum required Java major version.
 pub(crate) const HMCL_EXPECTED_JAVA_MAJOR_VERSION: u16 = 17;

@@ -22,11 +22,12 @@ use crate::wide::{
     WideDisplay, WideString, is_dot_or_dot_dot, trim_wide_whitespace, wide_contains,
     wide_slice_from_ptr,
 };
+use crate::wide_path::WidePathBuf;
 
 /// Collect the filesystem and JVM options needed to launch HMCL.
 pub struct JavaOptions {
-    pub workdir: WideString,
-    pub jar_path: WideString,
+    pub workdir: WidePathBuf,
+    pub jar_path: WidePathBuf,
     pub jvm_options: Option<WideString>,
 }
 
@@ -46,7 +47,7 @@ impl JavaVersion {
     }
 
     /// Read the PE version resource from a Java executable.
-    pub fn from_executable(path: &WideString) -> Self {
+    pub fn from_executable(path: &WidePathBuf) -> Self {
         // Match the C++ launcher and read the executable's version resource
         // instead of spawning `java -version`.
         let size = unsafe { GetFileVersionInfoSizeW(path.as_pcwstr(), ptr::null_mut()) };
@@ -65,9 +66,8 @@ impl JavaVersion {
         // version components in the same format as the upstream launcher.
         let mut info_ptr = ptr::null_mut();
         let mut info_len = 0u32;
-        let result = unsafe {
-            VerQueryValueW(data.as_ptr().cast(), w!("\\"), &mut info_ptr, &mut info_len)
-        };
+        let result =
+            unsafe { VerQueryValueW(data.as_ptr().cast(), w!("\\"), &mut info_ptr, &mut info_len) };
         if result == 0 || info_ptr.is_null() || info_len < size_of::<VS_FIXEDFILEINFO>() as u32 {
             return Self::invalid();
         }
@@ -141,7 +141,7 @@ impl Display for JavaVersion {
 /// Pair a Java executable path with the version discovered from its metadata.
 pub struct JavaRuntime {
     pub version: JavaVersion,
-    pub executable_path: WideString,
+    pub executable_path: WidePathBuf,
 }
 
 /// Own the set of discovered Java runtimes before launch selection.
@@ -158,7 +158,7 @@ impl JavaList {
     }
 
     /// Add one candidate runtime when it exists, is unique, and is new enough.
-    pub fn try_add(&mut self, java_executable: WideString) -> bool {
+    pub fn try_add(&mut self, java_executable: WidePathBuf) -> bool {
         if !is_regular_file(&java_executable) {
             return false;
         }
@@ -202,12 +202,13 @@ impl JavaList {
     /// Sort runtimes from lowest to highest version so callers can try the best
     /// match last-to-first.
     pub fn sort_by_version(&mut self) {
-        self.runtimes.sort_by(|left, right| left.version.cmp(&right.version));
+        self.runtimes
+            .sort_by(|left, right| left.version.cmp(&right.version));
     }
 }
 
 /// Launch HMCL with a specific Java executable.
-pub fn launch_jvm(java_executable_path: &WideString, options: &JavaOptions) -> bool {
+pub fn launch_jvm(java_executable_path: &WidePathBuf, options: &JavaOptions) -> bool {
     let mut command = WideString::new();
     if !command.push_char('"')
         || !command.push_slice(java_executable_path.as_slice())
@@ -279,7 +280,11 @@ pub fn launch_jvm(java_executable_path: &WideString, options: &JavaOptions) -> b
 }
 
 /// Search one directory for subdirectories that look like Java homes.
-pub fn search_java_in_dir(result: &mut JavaList, basedir: &WideString, java_executable_name: &str) {
+pub fn search_java_in_dir(
+    result: &mut JavaList,
+    basedir: &WidePathBuf,
+    java_executable_name: &str,
+) {
     log_verbose_fmt(format_args!(
         "Searching in directory: {}",
         WideDisplay(basedir.as_slice())
@@ -325,7 +330,7 @@ pub fn search_java_in_dir(result: &mut JavaList, basedir: &WideString, java_exec
 /// Probe the common vendor directories under Program Files.
 pub fn search_java_in_program_files(
     result: &mut JavaList,
-    program_files: &WideString,
+    program_files: &WidePathBuf,
     java_executable_name: &str,
 ) {
     // Search the same vendor folders as the upstream launcher.
@@ -441,7 +446,7 @@ pub fn search_java_in_registry(result: &mut JavaList, sub_key: PCWSTR, java_exec
             units -= 1;
         }
 
-        if let Some(mut executable) = WideString::from_utf16(&java_home[..units]) {
+        if let Some(mut executable) = WidePathBuf::from_utf16(&java_home[..units]) {
             if executable.push_path_component_str("bin")
                 && executable.push_path_component_str(java_executable_name)
             {
@@ -469,7 +474,7 @@ pub fn search_java_in_path(result: &mut JavaList, path: &[u16], java_executable_
 
         let entry = trim_wide_whitespace(&path[start..end]);
         if !entry.is_empty() {
-            if let Some(mut java_executable) = WideString::from_utf16(entry) {
+            if let Some(mut java_executable) = WidePathBuf::from_utf16(entry) {
                 if java_executable.push_path_component_str(java_executable_name) {
                     if wide_contains(java_executable.as_slice(), oracle_java) {
                         // Keep the upstream exclusion for Oracle's shared shim
