@@ -12,13 +12,9 @@ jobs:
     env:
       LAUNCHER_PATH: target\i686-win7-windows-msvc\release\HMCLauncher.exe
       RUST_TOOLCHAIN: nightly-2026-04-16
+      HMCL_VERSION: 3.13.1
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: HMCL-Dev/HMCL
-          ref: main
-          path: HMCL-Build
+      - uses: actions/checkout@v6
       - name: Get short SHA
         shell: pwsh
         run: echo "SHORT_SHA=$("${{ github.sha }}".Substring(0, 7))" >> $env:GITHUB_ENV
@@ -34,29 +30,37 @@ jobs:
           cache: gradle
       - name: Build HMCLauncher
         shell: pwsh
-        run: cargo build --release --locked
-      - name: Create checksum file
-        shell: pwsh
-        run: Out-File -InputObject (Get-FileHash -Path $env:LAUNCHER_PATH -Algorithm SHA256).Hash.ToLower() -FilePath "$env:LAUNCHER_PATH.sha256" -NoNewline
-      - name: Build HMCL
-        shell: pwsh
         run: |
-          $env:HMCL_LAUNCHER_EXE = Join-Path $env:GITHUB_WORKSPACE $env:LAUNCHER_PATH
-          Set-Location "$env:GITHUB_WORKSPACE\HMCL-Build"
-          .\gradlew makeExecutables --no-daemon
-      - name: Copy Artifacts
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Path Artifacts -Force | Out-Null
-          Copy-Item -Path HMCL-Build\HMCL\build\libs\*.exe -Destination Artifacts
-          Copy-Item -Path HMCL-Build\HMCL\build\libs\*.exe.sha256 -Destination Artifacts
-          Copy-Item -Path $env:LAUNCHER_PATH -Destination Artifacts
-          Copy-Item -Path "$env:LAUNCHER_PATH.sha256" -Destination Artifacts
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+          cargo build --release --locked
+          Copy-Item -Path $env:LAUNCHER_PATH -Destination target\HMCLauncher-${{ env.SHORT_SHA }}.exe
+      - name: Upload HMCLauncher exe
+        uses: actions/upload-artifact@v7
         with:
-          name: HMCLauncher-${{ env.SHORT_SHA }}
-          path: Artifacts
+          name: HMCLauncher.exe
+          path: target\HMCLauncher-${{ env.SHORT_SHA }}.exe
+          archive: false
+      - name: Download HMCL jar
+        shell: pwsh
+        run: |
+          $jarFileName = "HMCL-$env:HMCL_VERSION.jar"
+          $downloadUrl = "https://github.com/HMCL-dev/HMCL/releases/download/v$env:HMCL_VERSION/$jarFileName"
+          
+          Invoke-WebRequest -Uri $downloadUrl -OutFile "target\$jarFileName"
+      - name: Create HMCL exe
+        shell: pwsh
+        run: |
+          $exeBytes = [System.IO.File]::ReadAllBytes($env:LAUNCHER_PATH)
+          $jarBytes = [System.IO.File]::ReadAllBytes("target\HMCL-$env:HMCL_VERSION.jar")
+          
+          $mergedBytes = $exeBytes + $jarBytes
+          
+          [System.IO.File]::WriteAllBytes("target\HMCL-$env:HMCL_VERSION.$env:SHORT_SHA.exe", $mergedBytes)
+      - name: Upload HMCL exe
+        uses: actions/upload-artifact@v7
+        with:
+          name: HMCL.exe
+          path: target\HMCL-${{ env.HMCL_VERSION }}.${{ env.SHORT_SHA }}.exe
+          archive: false
       - name: Create release
         if: ${{ github.ref_type == 'tag' }}
         uses: softprops/action-gh-release@v2
