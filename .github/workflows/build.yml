@@ -21,13 +21,6 @@ jobs:
       - name: Setup Rust
         shell: pwsh
         run: rustup toolchain install $env:RUST_TOOLCHAIN --profile minimal --component rust-src
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: zulu
-          java-version: "17"
-          java-package: jdk+fx
-          cache: gradle
       - name: Build HMCLauncher
         shell: pwsh
         run: |
